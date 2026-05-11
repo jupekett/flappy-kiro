@@ -88,10 +88,8 @@ export class PlayScene extends Phaser.Scene {
             loop: true
         });
 
-        // Spawn first walls after a short delay
-        this.time.delayedCall(800, () => {
-            this.spawnWallPair();
-        });
+        // Spawn first walls at the same interval rhythm
+        this.spawnWallPair();
     }
 
     update() {
@@ -120,10 +118,15 @@ export class PlayScene extends Phaser.Scene {
         // Move walls and check collisions manually
         for (let i = this.wallPairs.length - 1; i >= 0; i--) {
             const pair = this.wallPairs[i];
+            const dx = this.wallSpeed * this.game.loop.delta / 1000;
 
-            // Move walls to the left
-            pair.topWall.x -= this.wallSpeed * this.game.loop.delta / 1000;
-            pair.bottomWall.x -= this.wallSpeed * this.game.loop.delta / 1000;
+            // Move wall zones
+            pair.topWall.x -= dx;
+            pair.bottomWall.x -= dx;
+
+            // Move associated graphics
+            if (pair.topWall.graphics) pair.topWall.graphics.x -= dx;
+            if (pair.bottomWall.graphics) pair.bottomWall.graphics.x -= dx;
 
             // Sync physics bodies
             pair.topWall.body.updateFromGameObject();
@@ -155,6 +158,8 @@ export class PlayScene extends Phaser.Scene {
 
             // Remove off-screen walls
             if (pair.topWall.x < -100) {
+                if (pair.topWall.graphics) pair.topWall.graphics.destroy();
+                if (pair.bottomWall.graphics) pair.bottomWall.graphics.destroy();
                 pair.topWall.destroy();
                 pair.bottomWall.destroy();
                 this.wallPairs.splice(i, 1);
@@ -182,24 +187,123 @@ export class PlayScene extends Phaser.Scene {
 
         // Top wall
         const topWallHeight = gapCenterY - this.gapSize / 2;
-        const topWall = this.add.rectangle(x, topWallHeight / 2, 70, topWallHeight, 0x4a3b2a);
-        topWall.setStrokeStyle(2, 0x2a2218);
-        topWall.setDepth(5);
-        this.physics.add.existing(topWall, true); // static body
+        const topWall = this.createWallGraphic(x, 0, 70, topWallHeight);
+        this.physics.add.existing(topWall, true);
 
         // Bottom wall
         const bottomWallY = gapCenterY + this.gapSize / 2;
         const bottomWallHeight = 560 - bottomWallY;
-        const bottomWall = this.add.rectangle(x, bottomWallY + bottomWallHeight / 2, 70, bottomWallHeight, 0x4a3b2a);
-        bottomWall.setStrokeStyle(2, 0x2a2218);
-        bottomWall.setDepth(5);
-        this.physics.add.existing(bottomWall, true); // static body
+        const bottomWall = this.createWallGraphic(x, bottomWallY, 70, bottomWallHeight);
+        this.physics.add.existing(bottomWall, true);
 
         this.wallPairs.push({
             topWall,
             bottomWall,
             scored: false
         });
+    }
+
+    createWallGraphic(x, y, width, height) {
+        const graphics = this.add.graphics();
+        graphics.setDepth(5);
+
+        const drawX = x - width / 2;
+        const drawY = y;
+
+        // Base fill - light gray stone
+        graphics.fillStyle(0xb0a8a0, 1);
+        graphics.fillRect(drawX, drawY, width, height);
+
+        // Draw stone brick rows with shaky mortar lines
+        const brickHeight = 22;
+        graphics.lineStyle(2, 0x6b6360, 0.8);
+
+        for (let row = 0; row < Math.ceil(height / brickHeight); row++) {
+            const rowY = drawY + row * brickHeight;
+            if (rowY > drawY + height) break;
+
+            // Horizontal mortar line (shaky)
+            graphics.beginPath();
+            for (let px = drawX; px <= drawX + width; px += 3) {
+                const wobble = (Math.random() - 0.5) * 2.5;
+                if (px === drawX) {
+                    graphics.moveTo(px, rowY + wobble);
+                } else {
+                    graphics.lineTo(px, rowY + wobble);
+                }
+            }
+            graphics.strokePath();
+
+            // Vertical mortar lines (offset every other row)
+            const offset = (row % 2) * (width / 2);
+            const brickWidth = width;
+            for (let vx = offset; vx < width; vx += brickWidth * 0.7) {
+                const lineX = drawX + vx;
+                if (lineX <= drawX || lineX >= drawX + width) continue;
+                graphics.beginPath();
+                for (let py = rowY; py <= Math.min(rowY + brickHeight, drawY + height); py += 3) {
+                    const wobble = (Math.random() - 0.5) * 2;
+                    if (py === rowY) {
+                        graphics.moveTo(lineX + wobble, py);
+                    } else {
+                        graphics.lineTo(lineX + wobble, py);
+                    }
+                }
+                graphics.strokePath();
+            }
+        }
+
+        // Random darker stone spots for texture
+        for (let i = 0; i < Math.floor(height / 15); i++) {
+            const spotX = drawX + Math.random() * width;
+            const spotY = drawY + Math.random() * height;
+            const size = 1.5 + Math.random() * 3;
+            graphics.fillStyle(0x8a8280, 0.4);
+            graphics.fillCircle(spotX, spotY, size);
+        }
+
+        // Lighter highlight spots
+        for (let i = 0; i < Math.floor(height / 25); i++) {
+            const spotX = drawX + Math.random() * width;
+            const spotY = drawY + Math.random() * height;
+            const size = 1 + Math.random() * 2;
+            graphics.fillStyle(0xd4cec8, 0.3);
+            graphics.fillCircle(spotX, spotY, size);
+        }
+
+        // Shaky border outline
+        graphics.lineStyle(2.5, 0x5a5450, 1);
+        graphics.beginPath();
+        // Top edge
+        for (let px = drawX; px <= drawX + width; px += 3) {
+            const wobble = (Math.random() - 0.5) * 2;
+            if (px === drawX) graphics.moveTo(px, drawY + wobble);
+            else graphics.lineTo(px, drawY + wobble);
+        }
+        // Right edge
+        for (let py = drawY; py <= drawY + height; py += 3) {
+            const wobble = (Math.random() - 0.5) * 2;
+            graphics.lineTo(drawX + width + wobble, py);
+        }
+        // Bottom edge
+        for (let px = drawX + width; px >= drawX; px -= 3) {
+            const wobble = (Math.random() - 0.5) * 2;
+            graphics.lineTo(px, drawY + height + wobble);
+        }
+        // Left edge
+        for (let py = drawY + height; py >= drawY; py -= 3) {
+            const wobble = (Math.random() - 0.5) * 2;
+            graphics.lineTo(drawX + wobble, py);
+        }
+        graphics.strokePath();
+
+        // We need a container-like object for physics positioning
+        // Use a zone as the physics target, positioned at center
+        const zone = this.add.zone(x, y + height / 2, width, height);
+        zone.setDepth(5);
+        zone.graphics = graphics;
+
+        return zone;
     }
 
     handleCollision() {
