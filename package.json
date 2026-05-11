@@ -1,0 +1,14 @@
+{
+  "name": "flappy-kiro",
+  "version": "1.0.0",
+  "description": "Flappy Kiro - A Flappy Bird clone featuring Ghosty the ghost",
+  "type": "module",
+  "main": "src/index.html",
+  "scripts": {
+    "start": "npx serve ."
+  },
+  "dependencies": {
+    "phaser": "3.80.1"
+  },
+  "license": "MIT"
+}
